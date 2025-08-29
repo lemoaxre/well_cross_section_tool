@@ -1,12 +1,17 @@
 '''
 # Well Cross-section Generator
-# Last updated: 07/25/2025
-# While running, select 
+# Last updated: 08/29/2025
+# To run this script, select the following layers in the LayerViewer:
+#   - Well Layer (Point Layer)
+#   - Cross Section (Line Layer)
+#   - Digital Terrain Model (Raster Layer)
+#
+# The script will not run properly without these layers being selected.
 '''
 from segments import *
 from formulas import *
 
-scale_factor = 3
+scale_factor = 4
 
 def findSegWells(line_layer, wells):
     f = QgsFeature()
@@ -52,7 +57,7 @@ if line_layer is not None and well_layer is not None:
         'TARGET_CRS':QgsCoordinateReferenceSystem('EPSG:26917'),
         'OUTPUT':'TEMPORARY_OUTPUT'})['OUTPUT']
     
-    elev_line = Formulas(line_layer, rast_layer)
+    elev_line = Formulas(line_layer, rast_layer, scale_factor)
     
     well_layer = processing.run("native:reprojectlayer", {'INPUT':well_layer,
         'TARGET_CRS':QgsCoordinateReferenceSystem('EPSG:26917'),
