@@ -2,10 +2,12 @@ import urllib
 import os
 import tempfile
 import numpy as np 
-
+import processing 
+from qgis.core import *
 from segequation import *
+from PyQt5.QtCore import *
 
-def point_create(line):
+def point_create(line, sf, mean_elev):
     figure = QgsVectorLayer("Point?crs=EPSG:26917", "Point Fig", "memory")
     pr = figure.dataProvider()
     pr.addAttributes([
@@ -24,7 +26,7 @@ def point_create(line):
     for f in line.getFeatures():
         print(f'LENGTH: {f.attribute("length")}, ELEV: {f.attribute("_mean")}')
         length = f.attribute('length')
-        y = f.attribute('_mean')
+        y = (f.attribute('_mean') - mean_elev) * sf
         if y is None or length is None:
             print('BAD FEATURE')
             continue  # skip bad features
@@ -57,7 +59,7 @@ def point_create(line):
     return figure
 
 class Formulas:
-    def __init__(self, line, rast):
+    def __init__(self, line, rast, sf):
         bb_line = line.extent()
 
         xDist = bb_line.xMaximum() - bb_line.xMinimum()
@@ -81,7 +83,26 @@ class Formulas:
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
         rast = QgsRasterLayer(clipped_rast, 'clipped', 'gdal')
-
+        
+        first_buffer = processing.run("native:buffer", {
+            'INPUT': line,
+            'DISTANCE': 1e-06,
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+        
+        first_buffer = processing.run("native:zonalstatisticsfb", {
+            'INPUT': first_buffer,
+            'INPUT_RASTER': rast,
+            'RASTER_BAND': 1,
+            'STATISTICS': [2],
+            'OUTPUT': 'TEMPORARY_OUTPUT'
+        })['OUTPUT']
+        
+        mean_elev = 0
+        for f in first_buffer.getFeatures():
+            mean_elev = f.attribute('_mean')
+            break
+        
         line = processing.run("native:splitlinesbylength", {
             'INPUT': line,
             'LENGTH': 10,
@@ -108,7 +129,7 @@ class Formulas:
             'OUTPUT': 'TEMPORARY_OUTPUT'
         })['OUTPUT']
         #QgsProject.instance().addMapLayer(buffered_line)
-        point = point_create(buffered_line)
+        point = point_create(buffered_line, sf, mean_elev)
         #QgsProject.instance().addMapLayer(point)
         
         x_val = []
